@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Calculadora do Hospital</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#0f1724;
+      --card:#0b1220;
+      --accent:#7dd3fc;
+      --muted:#94a3b8;
+      --glass: rgba(255,255,255,0.03);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:Inter,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial;
+      background: radial-gradient(1200px 600px at 10% 10%, rgba(34,197,94,0.06), transparent),
+                  radial-gradient(800px 500px at 90% 90%, rgba(59,130,246,0.04), transparent),
+                  var(--bg);
+      color:#e6eef8;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      padding:40px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .container{
+      width:100%;
+      max-width:980px;
+      display:grid;
+      grid-template-columns: 1fr 380px;
+      gap:28px;
+      align-items:start;
+    }
+    .panel{
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:16px;
+      padding:22px;
+      box-shadow: 0 6px 30px rgba(2,6,23,0.6);
+      border: 1px solid rgba(255,255,255,0.03);
+    }
+    h1{margin:0 0 8px 0;font-size:20px}
+    p.lead{margin:0 0 18px 0;color:var(--muted)}
+
+    .items{display:flex;flex-direction:column;gap:12px}
+    .item{
+      display:flex;align-items:center;gap:12px;padding:12px;border-radius:10px;background:var(--glass);
+    }
+    .item input[type="checkbox"]{width:20px;height:20px}
+    .item .meta{flex:1}
+    .item .meta .name{font-weight:600}
+    .item .meta .price{color:var(--muted);font-size:13px}
+    .qty{
+      display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.02);padding:6px;border-radius:8px;
+    }
+    .qty button{background:none;border:0;color:var(--accent);font-weight:700;padding:6px;cursor:pointer}
+    .qty input{width:44px;text-align:center;background:transparent;border:0;color:inherit;font-weight:600}
+
+    .summary{display:flex;flex-direction:column;gap:14px}
+    .total-box{background:linear-gradient(90deg, rgba(125,211,252,0.06), rgba(99,102,241,0.02));padding:16px;border-radius:12px;text-align:center}
+    .total-box .label{color:var(--muted);font-size:13px}
+    .total-box .amount{font-size:26px;font-weight:800;margin-top:6px}
+
+    .actions{display:flex;gap:10px}
+    .btn{flex:1;padding:10px 12px;border-radius:10px;border:0;cursor:pointer;font-weight:700}
+    .btn.primary{background:linear-gradient(90deg,var(--accent),#60a5fa);color:#052024}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
+
+    footer{margin-top:16px;color:var(--muted);font-size:13px;text-align:center}
+
+    @media (max-width:900px){
+      .container{grid-template-columns:1fr;}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="panel">
+      <h1>Calculadora do Hospital</h1>
+      <p class="lead">Marque os itens necessários. Ajuste quantidades e gere o total automaticamente.</p>
+
+      <div class="items" id="items">
+        <!-- items injected by JS -->
+      </div>
+
+      <footer>
+        Valores pré-definidos. Formato: R$ (pt-BR).
+      </footer>
+    </div>
+
+    <div class="panel">
+      <div class="summary">
+        <div class="total-box">
+          <div class="label">Subtotal</div>
+          <div class="amount" id="subtotal">R$ 0,00</div>
+        </div>
+
+        <div style="display:flex;gap:10px;align-items:center;justify-content:space-between">
+          <div style="color:var(--muted)">Itens selecionados: <strong id="count">0</strong></div>
+          <div style="color:var(--muted);font-size:13px">Sem taxas adicionais</div>
+        </div>
+
+        <div class="actions">
+          <button class="btn primary" id="resetBtn">Limpar</button>
+          <button class="btn ghost" id="copyBtn">Copiar resumo</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Dados dos itens (valores fixos conforme solicitado)
+    const ITEMS = [
+      { id: 'kit-medico', name: 'Kit Médico', price: 1500.00, note: 'Oficial fardado R$ 1.000,00 (opcional)' },
+      { id: 'oficial-fardado', name: 'Oficial fardado', price: 1000.00, note: '' },
+      { id: 'bandagem', name: 'Bandagem', price: 750.00, note: '' },
+      { id: 'benzetacil', name: 'Benzetacil', price: 750.00, note: '' },
+      { id: 'antibiotico', name: 'Antibiótico', price: 750.00, note: '' }
+    ];
+
+    const money = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    const itemsEl = document.getElementById('items');
+    const subtotalEl = document.getElementById('subtotal');
+    const countEl = document.getElementById('count');
+
+    function createItemRow(item){
+      const el = document.createElement('div');
+      el.className = 'item';
+      el.innerHTML = `
+        <input type="checkbox" id="cb-${item.id}" />
+        <div class="meta">
+          <div class="name">${item.name}</div>
+          <div class="price">${money(item.price)} ${item.note ? '• ' + item.note : ''}</div>
+        </div>
+        <div class="qty">
+          <button data-action="minus">−</button>
+          <input type="number" min="1" value="1" aria-label="quantidade" />
+          <button data-action="plus">+</button>
+        </div>
+      `;
+
+      // handlers
+      const cb = el.querySelector('input[type="checkbox"]');
+      const plus = el.querySelector('button[data-action="plus"]');
+      const minus = el.querySelector('button[data-action="minus"]');
+      const qty = el.querySelector('input[type="number"]');
+
+      // default unchecked
+      cb.addEventListener('change', update);
+      plus.addEventListener('click', ()=>{qty.value = Math.max(1, Number(qty.value)+1); update();});
+      minus.addEventListener('click', ()=>{qty.value = Math.max(1, Number(qty.value)-1); update();});
+      qty.addEventListener('change', ()=>{if(qty.value<1) qty.value=1; update();});
+
+      // attach item id and price
+      el.dataset.itemId = item.id;
+      el.dataset.price = item.price;
+
+      return el;
+    }
+
+    // render
+    ITEMS.forEach(i => itemsEl.appendChild(createItemRow(i)));
+
+    function calculate(){
+      const rows = Array.from(itemsEl.querySelectorAll('.item'));
+      let subtotal = 0;
+      let count = 0;
+      const summary = [];
+      rows.forEach(r => {
+        const cb = r.querySelector('input[type="checkbox"]');
+        if(cb.checked){
+          const qty = Number(r.querySelector('input[type="number"]').value || 1);
+          const price = Number(r.dataset.price || 0);
+          subtotal += price * qty;
+          count += 1;
+          const name = r.querySelector('.name').textContent.trim();
+          summary.push({name, qty, price});
+        }
+      });
+      return {subtotal, count, summary};
+    }
+
+    function update(){
+      const {subtotal, count} = calculate();
+      subtotalEl.textContent = money(subtotal);
+      countEl.textContent = String(count);
+    }
+
+    document.getElementById('resetBtn').addEventListener('click', ()=>{
+      const rows = Array.from(itemsEl.querySelectorAll('.item'));
+      rows.forEach(r=>{ r.querySelector('input[type="checkbox"]').checked=false; r.querySelector('input[type="number"]').value = 1; });
+      update();
+    });
+
+    document.getElementById('copyBtn').addEventListener('click', ()=>{
+      const {subtotal, summary} = calculate();
+      if(summary.length===0){ navigator.clipboard.writeText('Nenhum item selecionado.'); return alert('Nenhum item selecionado.'); }
+      let text = 'Resumo da compra (Calculadora do Hospital)\n';
+      summary.forEach(s=> text += `- ${s.name} x${s.qty} = ${money(s.price*s.qty)}\n`);
+      text += `\nSubtotal: ${money(subtotal)}`;
+      navigator.clipboard.writeText(text).then(()=>{
+        alert('Resumo copiado para a área de transferência.');
+      });
+    });
+
+    // initial
+    update();
+  </script>
+</body>
+</html>
