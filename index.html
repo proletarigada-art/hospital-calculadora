@@ -51,7 +51,6 @@
     .item{
       display:flex;align-items:center;gap:12px;padding:12px;border-radius:10px;background:var(--glass);
     }
-    .item input[type="checkbox"]{width:20px;height:20px}
     .item .meta{flex:1}
     .item .meta .name{font-weight:600}
     .item .meta .price{color:var(--muted);font-size:13px}
@@ -82,11 +81,9 @@
   <div class="container">
     <div class="panel">
       <h1>Calculadora do Hospital</h1>
-      <p class="lead">Marque os itens necessários. Ajuste quantidades e gere o total automaticamente.</p>
+      <p class="lead">Digite as quantidades desejadas. O total é calculado automaticamente.</p>
 
-      <div class="items" id="items">
-        <!-- items injected by JS -->
-      </div>
+      <div class="items" id="items"></div>
 
       <footer>
         Valores pré-definidos. Formato: R$ (pt-BR).
@@ -101,7 +98,7 @@
         </div>
 
         <div style="display:flex;gap:10px;align-items:center;justify-content:space-between">
-          <div style="color:var(--muted)">Itens selecionados: <strong id="count">0</strong></div>
+          <div style="color:var(--muted)">Itens com quantidade: <strong id="count">0</strong></div>
           <div style="color:var(--muted);font-size:13px">Sem taxas adicionais</div>
         </div>
 
@@ -114,16 +111,15 @@
   </div>
 
   <script>
-    // Dados dos itens (valores fixos conforme solicitado)
     const ITEMS = [
       { id: 'kit-medico', name: 'Kit Médico', price: 1500.00, note: 'Oficial fardado R$ 1.000,00 (opcional)' },
-      { id: 'oficial-fardado', name: 'Oficial fardado', price: 1000.00, note: '' },
-      { id: 'bandagem', name: 'Bandagem', price: 750.00, note: '' },
-      { id: 'benzetacil', name: 'Benzetacil', price: 750.00, note: '' },
-      { id: 'antibiotico', name: 'Antibiótico', price: 750.00, note: '' }
+      { id: 'oficial-fardado', name: 'Oficial fardado', price: 1000.00 },
+      { id: 'bandagem', name: 'Bandagem', price: 750.00 },
+      { id: 'benzetacil', name: 'Benzetacil', price: 750.00 },
+      { id: 'antibiotico', name: 'Antibiótico', price: 750.00 }
     ];
 
-    const money = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const money = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
     const itemsEl = document.getElementById('items');
     const subtotalEl = document.getElementById('subtotal');
@@ -133,74 +129,66 @@
       const el = document.createElement('div');
       el.className = 'item';
       el.innerHTML = `
-        <input type="checkbox" id="cb-${item.id}" />
         <div class="meta">
           <div class="name">${item.name}</div>
           <div class="price">${money(item.price)} ${item.note ? '• ' + item.note : ''}</div>
         </div>
         <div class="qty">
           <button data-action="minus">−</button>
-          <input type="number" min="1" value="1" aria-label="quantidade" />
+          <input type="number" min="0" value="0" aria-label="quantidade" />
           <button data-action="plus">+</button>
         </div>
       `;
 
-      // handlers
-      const cb = el.querySelector('input[type="checkbox"]');
       const plus = el.querySelector('button[data-action="plus"]');
       const minus = el.querySelector('button[data-action="minus"]');
       const qty = el.querySelector('input[type="number"]');
 
-      // default unchecked
-      cb.addEventListener('change', update);
-      plus.addEventListener('click', ()=>{qty.value = Math.max(1, Number(qty.value)+1); update();});
-      minus.addEventListener('click', ()=>{qty.value = Math.max(1, Number(qty.value)-1); update();});
-      qty.addEventListener('change', ()=>{if(qty.value<1) qty.value=1; update();});
+      plus.addEventListener('click', ()=>{ qty.value = Number(qty.value) + 1; update(); });
+      minus.addEventListener('click', ()=>{ qty.value = Math.max(0, Number(qty.value) - 1); update(); });
+      qty.addEventListener('input', ()=>{ if(qty.value < 0) qty.value = 0; update(); });
 
-      // attach item id and price
-      el.dataset.itemId = item.id;
       el.dataset.price = item.price;
-
+      el.dataset.name = item.name;
       return el;
     }
 
-    // render
     ITEMS.forEach(i => itemsEl.appendChild(createItemRow(i)));
 
     function calculate(){
-      const rows = Array.from(itemsEl.querySelectorAll('.item'));
       let subtotal = 0;
       let count = 0;
       const summary = [];
+      const rows = Array.from(itemsEl.querySelectorAll('.item'));
       rows.forEach(r => {
-        const cb = r.querySelector('input[type="checkbox"]');
-        if(cb.checked){
-          const qty = Number(r.querySelector('input[type="number"]').value || 1);
-          const price = Number(r.dataset.price || 0);
-          subtotal += price * qty;
-          count += 1;
-          const name = r.querySelector('.name').textContent.trim();
-          summary.push({name, qty, price});
+        const qty = Number(r.querySelector('input[type="number"]').value || 0);
+        if(qty > 0){
+          const price = Number(r.dataset.price);
+          subtotal += qty * price;
+          count++;
+          summary.push({ name: r.dataset.name, qty, price });
         }
       });
-      return {subtotal, count, summary};
+      return { subtotal, count, summary };
     }
 
     function update(){
-      const {subtotal, count} = calculate();
+      const { subtotal, count } = calculate();
       subtotalEl.textContent = money(subtotal);
       countEl.textContent = String(count);
     }
 
     document.getElementById('resetBtn').addEventListener('click', ()=>{
-      const rows = Array.from(itemsEl.querySelectorAll('.item'));
-      rows.forEach(r=>{ r.querySelector('input[type="checkbox"]').checked=false; r.querySelector('input[type="number"]').value = 1; });
+      itemsEl.querySelectorAll('input[type="number"]').forEach(i=> i.value = 0);
       update();
     });
 
     document.getElementById('copyBtn').addEventListener('click', ()=>{
-      const {subtotal, summary} = calculate();
-      if(summary.length===0){ navigator.clipboard.writeText('Nenhum item selecionado.'); return alert('Nenhum item selecionado.'); }
+      const { subtotal, summary } = calculate();
+      if(summary.length === 0){
+        navigator.clipboard.writeText('Nenhum item com quantidade informada.');
+        return alert('Nenhum item com quantidade informada.');
+      }
       let text = 'Resumo da compra (Calculadora do Hospital)\n';
       summary.forEach(s=> text += `- ${s.name} x${s.qty} = ${money(s.price*s.qty)}\n`);
       text += `\nSubtotal: ${money(subtotal)}`;
@@ -209,7 +197,6 @@
       });
     });
 
-    // initial
     update();
   </script>
 </body>
